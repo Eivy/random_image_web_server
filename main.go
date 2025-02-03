@@ -56,9 +56,9 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	}
 	img2 := ResizeImage(img, 128, 128)
 
-	w.WriteHeader(res.StatusCode)
 	w.Header().Add("Content-Type", res.Header.Get("Content-Type"))
 	w.Header().Add("Content-Length", res.Header.Get("Content-Length"))
+	w.WriteHeader(res.StatusCode)
 	png.Encode(w, img2)
 }
 
