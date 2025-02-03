@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
 	"image"
 	"image/png"
+	"io"
 	"log"
 	"math/rand"
 	"net/http"
@@ -56,10 +58,12 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	}
 	img2 := ResizeImage(img, 128, 128)
 
-	w.Header().Add("Content-Type", res.Header.Get("Content-Type"))
-	w.Header().Add("Content-Length", res.Header.Get("Content-Length"))
+	var b bytes.Buffer
+	png.Encode(&b, img2)
+	w.Header().Add("Content-Type", fmt.Sprint(len(b.Bytes())))
+	w.Header().Add("Content-Length", "image/png")
 	w.WriteHeader(res.StatusCode)
-	png.Encode(w, img2)
+	io.Copy(w, &b)
 }
 
 func elementScreenshot(urlstr, sel string, res *[]byte) chromedp.Tasks {
