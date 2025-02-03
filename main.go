@@ -5,13 +5,16 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
-	"io"
+	"image"
+	"image/png"
 	"log"
 	"math/rand"
 	"net/http"
 	"os"
 	"strconv"
 	"time"
+
+	"golang.org/x/image/draw"
 
 	"github.com/chromedp/chromedp"
 )
@@ -44,11 +47,19 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res, err := http.DefaultClient.Get(imgUrl)
+	defer res.Body.Close()
+	img, err := png.Decode(res.Body)
+	if err != nil {
+		log.Println("[error]", "request error", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	img2 := ResizeImage(img, 128, 128)
 
 	w.WriteHeader(res.StatusCode)
 	w.Header().Add("Content-Type", res.Header.Get("Content-Type"))
 	w.Header().Add("Content-Length", res.Header.Get("Content-Length"))
-	io.Copy(w, res.Body)
+	png.Encode(w, img2)
 }
 
 func elementScreenshot(urlstr, sel string, res *[]byte) chromedp.Tasks {
@@ -56,6 +67,16 @@ func elementScreenshot(urlstr, sel string, res *[]byte) chromedp.Tasks {
 		chromedp.Navigate(urlstr),
 		chromedp.Screenshot(sel, res, chromedp.NodeVisible),
 	}
+}
+
+func ResizeImage(img image.Image, width, height int) image.Image {
+	// 欲しいサイズの画像を新しく作る
+	newImage := image.NewRGBA(image.Rect(0, 0, width, height))
+
+	// サイズを変更しながら画像をコピーする
+	draw.BiLinear.Scale(newImage, newImage.Bounds(), img, img.Bounds(), draw.Over, nil)
+
+	return newImage
 }
 
 func randomFromString(s string, threshold int64) int64 {

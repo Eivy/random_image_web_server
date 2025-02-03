@@ -2,7 +2,10 @@ module github.com/eivy/random_image_web_server
 
 go 1.23.4
 
-require github.com/chromedp/chromedp v0.12.1
+require (
+	github.com/chromedp/chromedp v0.12.1
+	golang.org/x/image v0.23.0
+)
 
 require (
 	github.com/chromedp/cdproto v0.0.0-20250120090109-d38428e4d9c8 // indirect
