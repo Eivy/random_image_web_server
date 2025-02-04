@@ -30,7 +30,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	if seedStr != "" {
 		num = randomFromString(seedStr, threshold)
 	} else {
-		num = time.Now().UnixNano()
+		num = time.Now().UnixNano() % threshold
 	}
 
 	url := fmt.Sprintf("https://zukan.pokemon.co.jp/detail/%04d", num)
