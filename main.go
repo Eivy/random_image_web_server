@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"image"
+	"image/color"
 	"image/png"
 	"io"
 	"log"
@@ -17,8 +18,11 @@ import (
 	"time"
 
 	"golang.org/x/image/draw"
+	"golang.org/x/image/font"
+	"golang.org/x/image/math/fixed"
 
 	gq "github.com/PuerkitoBio/goquery"
+	"github.com/golang/freetype/truetype"
 )
 
 // ハンドラ関数
@@ -78,9 +82,23 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	img2 := ResizeImage(img, 128, 128)
+	face := truetype.NewFace(cicaFont, &truetype.Options{
+		Size: 15,
+	})
+	bounds := img2.Bounds()
+	rgba := image.NewRGBA(bounds)
+	draw.Draw(rgba, bounds, img2, bounds.Min, draw.Src)
+
+	draw := &font.Drawer{
+		Dst:  rgba,
+		Src:  image.NewUniform(color.Black),
+		Face: face,
+		Dot:  fixed.Point26_6{X: fixed.I(0), Y: fixed.I(128)},
+	}
+	draw.DrawString(d.Pokemon.Name)
 
 	var b bytes.Buffer
-	png.Encode(&b, img2)
+	png.Encode(&b, rgba)
 	w.Header().Add("Content-Length", fmt.Sprint(len(b.Bytes())))
 	w.Header().Add("Content-Type", "image/png")
 	w.WriteHeader(res.StatusCode)
@@ -119,6 +137,7 @@ func randomFromString(s string, threshold int64) int64 {
 }
 
 var threshold int64
+var cicaFont *truetype.Font
 
 func main() {
 	port := os.Getenv("PORT")
@@ -130,8 +149,14 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	http.HandleFunc("/", handler)
 
+	ttf, err := os.ReadFile("./Cica-Regular.ttf")
+	if err != nil {
+		panic(err)
+	}
+	cicaFont, err = truetype.Parse(ttf)
+
+	http.HandleFunc("/", handler)
 	fmt.Println("Starting server")
 	if err := http.ListenAndServe(fmt.Sprintf(":%s", port), nil); err != nil {
 		log.Fatal(err)

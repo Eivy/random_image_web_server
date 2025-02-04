@@ -6,12 +6,9 @@ FROM golang:alpine as build
 COPY . /build
 WORKDIR /build
 RUN go build -o random_image_web_server
+FROM alpine as font
+RUN apk update && apk add curl && curl -L -o Cica.zip "https://github.com/miiton/Cica/releases/download/v5.0.3/Cica_v5.0.3_without_emoji.zip" && unzip Cica.zip
 FROM alpine
-RUN apk update && apk add chromium nss freetype harfbuzz ca-certificates ttf-freefont curl fontconfig \
-		&& curl -O https://noto-website-2.storage.googleapis.com/pkgs/NotoSansCJKjp-hinted.zip \
-		&& mkdir -p /usr/share/fonts/NotoSansCJKjp \
-		&& unzip NotoSansCJKjp-hinted.zip -d /usr/share/fonts/NotoSansCJKjp/ \
-		&& rm NotoSansCJKjp-hinted.zip \
-		&& fc-cache -fv
 COPY --from=build /build/random_image_web_server .
+COPY --from=font Cica-Regular.ttf .
 CMD ["/random_image_web_server"]
