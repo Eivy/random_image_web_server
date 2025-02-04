@@ -27,10 +27,10 @@ import (
 
 // ハンドラ関数
 func handler(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
 	// クエリパラメータから "seed" を取得
-	seedStr := r.URL.Query().Get("seed")
+	seedStr := query.Get("seed")
 	var num int64
-
 	if seedStr != "" {
 		num = randomFromString(seedStr, threshold)
 	} else {
@@ -81,7 +81,16 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	img2 := ResizeImage(img, 128, 128)
+	x, err := strconv.Atoi(query.Get("x"))
+	if err != nil {
+		x = img.Bounds().Dx()
+	}
+	y, err := strconv.Atoi(query.Get("y"))
+	if err != nil {
+		y = img.Bounds().Dy()
+	}
+
+	img2 := ResizeImage(img, x, y)
 	face := truetype.NewFace(cicaFont, &truetype.Options{
 		Size: 15,
 	})
@@ -93,7 +102,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		Dst:  rgba,
 		Src:  image.NewUniform(color.Black),
 		Face: face,
-		Dot:  fixed.Point26_6{X: fixed.I(0), Y: fixed.I(128)},
+		Dot:  fixed.Point26_6{X: fixed.I(0), Y: fixed.I(y)},
 	}
 	draw.DrawString(d.Pokemon.Name)
 
