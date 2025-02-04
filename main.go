@@ -2,9 +2,9 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"image"
 	"image/png"
@@ -18,7 +18,7 @@ import (
 
 	"golang.org/x/image/draw"
 
-	"github.com/chromedp/chromedp"
+	gq "github.com/PuerkitoBio/goquery"
 )
 
 // ハンドラ関数
@@ -34,21 +34,42 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	url := fmt.Sprintf("https://zukan.pokemon.co.jp/detail/%04d", num)
-	var imgUrl string
-	var name string
-	err := chromedp.Run(ctx,
-		chromedp.Navigate(url),
-		chromedp.Evaluate(`document.querySelector("main header img").getAttribute("src")`, &imgUrl),
-		chromedp.Evaluate(`document.querySelector("main header img").getAttribute("alt")`, &name),
-	)
-	log.Println(seedStr, num, name)
+	res, err := http.DefaultClient.Get(url)
 	if err != nil {
-		log.Println("[error]", "request error", err)
+		log.Println("[error]", "request root", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	defer res.Body.Close()
+	doc, err := gq.NewDocumentFromReader(res.Body)
+	if err != nil {
+		log.Println("[error]", "parse", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	jsonElm := doc.Find(`script#json-data`).First()
+	if jsonElm == nil {
+		log.Println("[error]", "getting element", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	text := jsonElm.Text()
+	var d Data
+	err = json.Unmarshal([]byte(text), &d)
+	if err != nil {
+		log.Println("[error]", "getting element", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	res, err := http.DefaultClient.Get(imgUrl)
+	log.Println(seedStr, num, d.Pokemon.Name)
+
+	res, err = http.DefaultClient.Get(d.Pokemon.ImageS)
+	if err != nil {
+		log.Println("[error]", "request img", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 	defer res.Body.Close()
 	img, err := png.Decode(res.Body)
 	if err != nil {
@@ -60,17 +81,17 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 	var b bytes.Buffer
 	png.Encode(&b, img2)
-	w.Header().Add("Content-Type", fmt.Sprint(len(b.Bytes())))
-	w.Header().Add("Content-Length", "image/png")
+	w.Header().Add("Content-Length", fmt.Sprint(len(b.Bytes())))
+	w.Header().Add("Content-Type", "image/png")
 	w.WriteHeader(res.StatusCode)
 	io.Copy(w, &b)
 }
 
-func elementScreenshot(urlstr, sel string, res *[]byte) chromedp.Tasks {
-	return chromedp.Tasks{
-		chromedp.Navigate(urlstr),
-		chromedp.Screenshot(sel, res, chromedp.NodeVisible),
-	}
+type Data struct {
+	Pokemon struct {
+		Name   string `json:"name"`
+		ImageS string `json:"image_s"`
+	} `json:"pokemon"`
 }
 
 func ResizeImage(img image.Image, width, height int) image.Image {
@@ -98,7 +119,6 @@ func randomFromString(s string, threshold int64) int64 {
 }
 
 var threshold int64
-var ctx context.Context
 
 func main() {
 	port := os.Getenv("PORT")
@@ -110,14 +130,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	opts := append(chromedp.DefaultExecAllocatorOptions[:],
-		chromedp.Flag("headless", true), // headless=false に変更
-		chromedp.Flag("no-sandbox", true),
-	)
-	allocCtx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
-	defer cancel()
-	ctx, cancel = chromedp.NewContext(allocCtx, chromedp.WithLogf(log.Printf))
-	defer cancel()
 	http.HandleFunc("/", handler)
 
 	fmt.Println("Starting server")
